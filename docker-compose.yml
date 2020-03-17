@@ -1,0 +1,72 @@
+version: "3"
+services:
+  app:
+    build: docker/app
+    container_name: app
+    restart: always
+    working_dir: /var/www
+    volumes:
+      - ./${PROJECT_DIR}:/var/www
+      - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    networks:
+      - app-network
+    depends_on:
+      - db
+
+  webserver:
+    image: nginx:alpine
+    container_name: webserver
+    restart: always
+    tty: true
+    volumes:
+      - ./${PROJECT_DIR}:/var/www
+      - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
+    ports:
+      - "${PORT_PROJECT}:80"
+      - "443:443"
+    networks:
+      - app-network
+
+  db:
+    image: mysql:${MYSQL_VERSION}
+    env_file: .env
+    container_name: db
+    restart: always
+    tty: true
+    volumes:
+      - ./docker/mysql/dbdata:/var/lib/mysql
+      - ./docker/mysql/my.cnf:/etc/mysql/my.cnf
+    ports:
+      - "${PORT_MYSQL}:3306"
+    environment:
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    networks:
+      - app-network
+
+  pma:
+    image: phpmyadmin/phpmyadmin
+    env_file: .env
+    container_name: pma
+    ports:
+      - ${PORT_PMA}:80
+    environment:
+      - PMA_USER=${MYSQL_ROOT_USER}
+      - PMA_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    restart: always
+    depends_on:
+      - db
+    networks:
+      - app-network
+
+  composer:
+    image: composer:latest
+    volumes:
+     - ./${PROJECT_DIR}:/var/www
+    working_dir: /var/www
+    command: composer install
+networks:
+  app-network:
+    driver: bridge
